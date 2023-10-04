@@ -20,7 +20,7 @@ class lessonsService {
       lastDate,
     } = data;
 
-    let createdIds, query;
+    let createdIds, query, added;
 
     if (isNaN(lessonsCount)) {
       query = `WITH days AS (
@@ -37,24 +37,51 @@ class lessonsService {
         RETURNING id;`;
       createdIds = await dbPool
         .query(query)
-        .then((value) =>
-          value.rows.map((el) =>
-            Number(Object.values(el))
-          )
+        .then(
+          (value) =>
+            (added = value.rows.map(
+              (el) =>
+                Number(
+                  Object.values(el)
+                )
+            ))
         )
         .catch((err) => {
           console.log(err.message);
         });
     } else {
-      query = ``;
+      const interval = Math.ceil(
+        lessonsCount / days.length
+      );
+      query = `WITH days AS (
+          SELECT date, EXTRACT(DOW FROM date) day_of_week 
+          FROM generate_series('${firstDate}'::DATE,'${firstDate}'::DATE+interval '${interval} weeks','1 day'::interval) date 
+        ), dates as(
+          SELECT date::DATE 
+          FROM days 
+          WHERE day_of_week IN (${days.toString()})
+        ), res as (select * from dates limit ${lessonsCount})
+        INSERT INTO lessons(date, title, status)
+        SELECT *, '${title}', '0'
+        FROM res
+        RETURNING id;`;
       createdIds = await dbPool
         .query(query)
+        .then(
+          (value) =>
+            (added = value.rows.map(
+              (el) =>
+                Number(
+                  Object.values(el)
+                )
+            ))
+        )
         .catch((err) => {
           console.log(err.message);
         });
     }
 
-    if (!createdIds.length)
+    if (!added.length)
       return {
         message: 'lessons not added',
       };

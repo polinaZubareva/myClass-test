@@ -7,7 +7,6 @@ class lessonsController {
       await lessonsService.createLessons(
         addedData
       );
-    console.log(result);
     res.send(result);
   }
 

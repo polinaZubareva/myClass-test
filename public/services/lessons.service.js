@@ -21,15 +21,26 @@ class lessonsService {
     } = data;
 
     let createdIds, query, added;
-
+    const first = new Date(firstDate);
+    let last = new Date(lastDate);
+    if (
+      last.getDate() - first.getDate() >
+      0
+    )
+      last = new Date(
+        first.setFullYear(
+          first.getFullYear() + 1
+        )
+      );
     if (isNaN(lessonsCount)) {
       query = `WITH days AS (
           SELECT date, EXTRACT(DOW FROM date) day_of_week 
-          FROM generate_series('${firstDate}'::DATE,'${lastDate}'::DATE,'1 day'::interval) date 
+          FROM generate_series('${firstDate}'::DATE,'${last}'::DATE,'1 day'::interval) date 
         ), dates as(
           SELECT date::DATE 
           FROM days 
           WHERE day_of_week IN (${days.toString()})
+          LIMIT ${this.countLimit}
         )
         INSERT INTO lessons(date, title, status)
         SELECT date, '${title}', '0'
@@ -47,7 +58,10 @@ class lessonsService {
             ))
         )
         .catch((err) => {
-          return { error: err.message };
+          return {
+            status: 400,
+            error: err.message,
+          };
         });
     } else {
       const interval = Math.ceil(
@@ -60,7 +74,11 @@ class lessonsService {
           SELECT date::DATE 
           FROM days 
           WHERE day_of_week IN (${days.toString()})
-        ), res as (select * from dates limit ${lessonsCount})
+        ), res as (select * from dates WHERE date < ('${firstDate}'::DATE+'1 year'::interval) limit ${
+          lessonsCount > 300
+            ? 300
+            : lessonsCount
+        })
         INSERT INTO lessons(date, title, status)
         SELECT *, '${title}', '0'
         FROM res
@@ -76,19 +94,22 @@ class lessonsService {
                 )
             ))
         )
-
         .catch((err) => {
           console.log(err.message);
-          return { error: err.message };
+          return {
+            status: 400,
+            error: err.message,
+          };
         });
     }
 
     if (!added?.length)
       return {
-        message: 'lessons not added',
+        status: 400,
+        message:
+          'lessons added, but problems with foreign keys',
       };
     else {
-      console.log(added);
       const addLessonTeachersIdsQuery = `WITH lessons_new AS(
         SELECT * FROM unnest($1::int[])
       ), teachers_new AS(
@@ -97,6 +118,7 @@ class lessonsService {
       SELECT * FROM lessons_new, teachers_new
       )
       INSERT INTO lesson_teachers(lesson_id, teacher_id) SELECT * FROM res;`;
+
       await dbPool
         .query(
           addLessonTeachersIdsQuery,
@@ -109,7 +131,10 @@ class lessonsService {
         })
         .catch((err) => {
           console.log(err.message);
-          return { error: err.message };
+          return {
+            status: 400,
+            error: err.message,
+          };
         });
     }
     return { lessonsIds: createdIds };

@@ -47,7 +47,7 @@ class lessonsService {
             ))
         )
         .catch((err) => {
-          console.log(err.message);
+          return { error: err.message };
         });
     } else {
       const interval = Math.ceil(
@@ -76,27 +76,31 @@ class lessonsService {
                 )
             ))
         )
+
         .catch((err) => {
           console.log(err.message);
+          return { error: err.message };
         });
     }
 
-    if (!added.length)
+    if (!added?.length)
       return {
         message: 'lessons not added',
       };
     else {
-      const addLessonTeachersIdsQuery = `WITH lessons AS(
-          Select * from unnest(ARRAY${createdIds})
-        ), teachers AS(
-          Select * from unnest(ARRAY${teacherIds})
-        ), res as(
-        Select * from lessons, teachers
-        )
-        insert into lesson_teachers(lesson_id, teacher_id) select * from res;`;
+      console.log(added);
+      const addLessonTeachersIdsQuery = `WITH lessons_new AS(
+        SELECT * FROM unnest($1::int[])
+      ), teachers_new AS(
+        SELECT * FROM unnest($2::int[])
+      ), res as(
+      SELECT * FROM lessons_new, teachers_new
+      )
+      INSERT INTO lesson_teachers(lesson_id, teacher_id) SELECT * FROM res;`;
       await dbPool
         .query(
-          addLessonTeachersIdsQuery
+          addLessonTeachersIdsQuery,
+          [added, teacherIds]
         )
         .then((value) => {
           console.log(
@@ -104,10 +108,11 @@ class lessonsService {
           );
         })
         .catch((err) => {
-          console.log(err.massage);
+          console.log(err.message);
+          return { error: err.message };
         });
     }
-    return createdIds;
+    return { lessonsIds: createdIds };
   }
 
   async getLessons() {

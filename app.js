@@ -37,7 +37,7 @@ function restore() {
       console.log('error', err);
     });
 }
-restore();
+// restore();
 
 function backup() {
   execute(

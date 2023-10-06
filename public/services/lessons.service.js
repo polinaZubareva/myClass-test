@@ -13,6 +13,7 @@ class lessonsService {
     let last = new Date(lastDate);
     if (last.getDate() - first.getDate() > 0)
       last = new Date(first.setFullYear(first.getFullYear() + 1));
+
     if (isNaN(lessonsCount)) {
       query = `WITH days AS (
           SELECT date, EXTRACT(DOW FROM date) day_of_week 
@@ -104,30 +105,29 @@ class lessonsService {
   }
 
   async getLessons(data) {
+    let ids,
+      getQuery,
+      gottenData = [];
     let {
-      date,
-      status,
-      teacherIds,
-      studentsCount,
+      date = 'null,null',
+      status = null,
+      teacherIds = 'null',
+      studentsCount = 'null',
       page = 1,
       lessonsPerPage = 5,
     } = data;
     date = date.split(',');
     teacherIds = teacherIds.split(',');
-    //studentsCount = studentsCount.split(',');
-
-    const getQuery = `with date_filter as(
+    console.log(date);
+    if (date[1] === undefined || date[1] === 'null')
+      getQuery = `with date_filter as(
       select id from lessons
-      where date >= '${date[0]}' and date <= '${date[1]}'
+      where date = $1
     ), status_filter as(
       select id from lessons
-      where status='${status}'
+      where status=$2
     ), teacher_lessons_filter as(
-      with teachers_id as(
-        select * from unnest($1::int[])
-      )
-      select lesson_id from lesson_teachers
-      where teacher_id in (select * from teachers_id)
+      select lesson_id from lesson_teachers where teacher_id in (${teacherIds})
     ), students_count_filter as(
       with counted_lessons as (
       select lesson_id, count(*) 
@@ -143,25 +143,70 @@ class lessonsService {
       union 
       select * from students_count_filter
     ), visit_count as (
-      select lesson_id, count(*) as vcount from lesson_students 
+      select lesson_id, count(*) as visited_count from lesson_students 
       where lesson_id in (select * from all_selected) 
       and visit=true 
       group by 1
     )
-    select lessons.id, date, title, status, vcount 
+    select lessons.id, date, title, status, visited_count 
     from lessons 
     left join visit_count on lessons.id=visit_count.lesson_id 
     where id in (select * from all_selected) 
     order by 1
     limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
-    const lessons = await dbPool.query(getQuery, [teacherIds]).catch((err) => {
-      return { status: 400, error: err.message };
-    });
-    lessons.rows.forEach((value) => {
+    else
+      getQuery = `with date_filter as(
+      select id from lessons
+      where date >= $1 and date <= '${date[1]}'
+    ), status_filter as(
+      select id from lessons
+      where status=$2
+    ), teacher_lessons_filter as(
+      select lesson_id from lesson_teachers where teacher_id in (${teacherIds})
+    ), students_count_filter as(
+      with counted_lessons as (
+      select lesson_id, count(*) 
+      from lesson_students
+      group by 1
+      ) select lesson_id from counted_lessons where count in (${studentsCount})
+    ), all_selected as(
+      select * from date_filter
+      union 
+      select * from status_filter
+      union
+      select * from teacher_lessons_filter
+      union 
+      select * from students_count_filter
+    ), visit_count as (
+      select lesson_id, count(*) as visited_count from lesson_students 
+      where lesson_id in (select * from all_selected) 
+      and visit=true 
+      group by 1
+    )
+    select lessons.id, date, title, status, visited_count 
+    from lessons 
+    left join visit_count on lessons.id=visit_count.lesson_id 
+    where id in (select * from all_selected) 
+    order by 1
+    limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
+
+    console.log(getQuery);
+    await dbPool
+      .query(getQuery, [date[0] === 'null' ? null : date[0], status])
+      .then((value) => {
+        gottenData = value.rows;
+        ids = value.rows.map((value) => value?.id);
+      })
+      .catch((err) => {
+        return { status: 400, error: err.message };
+      });
+
+    gottenData.forEach((value) => {
       value.students = [];
       value.teachers = [];
     });
-    return lessons.rows;
+
+    return gottenData;
   }
 }
 

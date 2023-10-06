@@ -11,8 +11,11 @@ class lessonsController {
   }
 
   async read(req, res) {
-    lessonsService.getLessons();
-    return res.send('halo');
+    const lessons =
+      await lessonsService.getLessons(
+        req.body
+      );
+    res.send(lessons);
   }
 }
 

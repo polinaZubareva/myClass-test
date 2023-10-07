@@ -8,16 +8,26 @@ class lessonsService {
   async createLessons(data) {
     const { teacherIds, title, days, firstDate, lessonsCount, lastDate } = data;
 
+    if ([teacherIds, title, days, firstDate].some((item) => item === undefined))
+      return { responseStatus: 400, error: 'some data is undefined' };
+
     let createdIds, query, added;
     const first = new Date(firstDate);
     let last = new Date(lastDate);
-    if (last.getDate() - first.getDate() > 0)
-      last = new Date(first.setFullYear(first.getFullYear() + 1));
+    const newLast = new Date(first.setFullYear(first.getFullYear() + 1));
 
     if (isNaN(lessonsCount)) {
       query = `WITH days AS (
           SELECT date, EXTRACT(DOW FROM date) day_of_week 
-          FROM generate_series('${firstDate}'::DATE,'${last}'::DATE,'1 day'::interval) date 
+          FROM generate_series('${firstDate}'::DATE,'${
+            last.getDate() - first.getDate() > 0
+              ? newLast.getFullYear() +
+                '-' +
+                (newLast.getMonth() + 1) +
+                '-' +
+                newLast.getDate()
+              : lastDate
+          }'::DATE,'1 day'::interval) date 
         ), dates as(
           SELECT date::DATE 
           FROM days 
@@ -28,17 +38,6 @@ class lessonsService {
         SELECT date, '${title}', '0'
         FROM dates
         RETURNING id;`;
-      createdIds = await dbPool
-        .query(query)
-        .then(
-          (value) => (added = value.rows.map((el) => Number(Object.values(el))))
-        )
-        .catch((err) => {
-          return {
-            status: 400,
-            error: err.message,
-          };
-        });
     } else {
       const interval = Math.ceil(lessonsCount / days.length);
       query = `WITH days AS (
@@ -55,48 +54,45 @@ class lessonsService {
         SELECT *, '${title}', '0'
         FROM res
         RETURNING id;`;
-      createdIds = await dbPool
-        .query(query)
-        .then(
-          (value) => (added = value.rows.map((el) => Number(Object.values(el))))
-        )
-        .catch((err) => {
-          console.log(err.message);
-          return {
-            status: 400,
-            error: err.message,
-          };
-        });
     }
+    createdIds = await dbPool
+      .query(query)
+      .then(
+        (value) => (added = value.rows.map((el) => Number(Object.values(el))))
+      )
+      .catch((err) => {
+        console.log(err.message);
+        return {
+          responseStatus: 400,
+          error: err.message,
+        };
+      });
 
-    if (!added?.length)
+    if (!createdIds?.length)
       return {
-        status: 400,
+        responseStatus: 400,
         message: 'lessons added, but problems with foreign keys',
       };
     else {
       const addLessonTeachersIdsQuery = `WITH lessons_new AS(
-        SELECT * FROM unnest($1::int[])
-      ), teachers_new AS(
-        SELECT * FROM unnest($2::int[])
-      ), res as(
-      SELECT * FROM lessons_new, teachers_new
-      )
-      INSERT INTO lesson_teachers(lesson_id, teacher_id) SELECT * FROM res 
-      WHERE NOT EXISTS (
-        SELECT null from lesson_teachers 
-        WHERE (lesson_id, teacher_id) = SELECT * FROM res
-       ));`;
+          SELECT * FROM unnest(array [${added}])
+        ), teachers_new AS(
+          SELECT * FROM unnest(array [${teacherIds}])
+        ), res as(
+        SELECT * FROM lessons_new, teachers_new
+        )
+        INSERT INTO lesson_teachers(lesson_id, teacher_id) SELECT * FROM res 
+        ON CONFLICT ON CONSTRAINT lessons_teachers DO nothing;`;
 
       await dbPool
-        .query(addLessonTeachersIdsQuery, [added, teacherIds])
+        .query(addLessonTeachersIdsQuery)
         .then((value) => {
           console.log(` lessons teachers${value}`);
         })
         .catch((err) => {
           console.log(err.message);
           return {
-            status: 400,
+            responseStatus: 400,
             error: err.message,
           };
         });
@@ -118,7 +114,7 @@ class lessonsService {
     } = data;
     date = date.split(',');
     teacherIds = teacherIds.split(',');
-    console.log(date);
+
     if (date[1] === undefined || date[1] === 'null')
       getQuery = `with date_filter as(
       select id from lessons
@@ -190,7 +186,6 @@ class lessonsService {
     order by 1
     limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
 
-    console.log(getQuery);
     await dbPool
       .query(getQuery, [date[0] === 'null' ? null : date[0], status])
       .then((value) => {
@@ -198,7 +193,7 @@ class lessonsService {
         ids = value.rows.map((value) => value?.id);
       })
       .catch((err) => {
-        return { status: 400, error: err.message };
+        return { responseStatus: 400, error: err.message };
       });
 
     gottenData.forEach((value) => {
@@ -207,6 +202,14 @@ class lessonsService {
     });
 
     return gottenData;
+  }
+
+  async getStudents(lessonsIds) {
+    let students = [];
+    for (let i = 0; i < lessonsIds.length - 1; i++) {
+      students.push((await dbPool.query()).rows);
+    }
+    return students;
   }
 }
 

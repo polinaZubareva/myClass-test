@@ -37,7 +37,7 @@ function restore() {
       console.log('error', err);
     });
 }
-restore();
+// restore();
 
 function backup() {
   execute(
@@ -50,9 +50,11 @@ function backup() {
       console.log('error', err);
     });
 }
-cron.schedule('* * * * *', () => {
-  console.log('Got backup');
-  backup();
-});
+backup();
+
+// cron.schedule('* * * * *', () => {
+//   console.log('Got backup');
+//   backup();
+// });
 
 export default app;

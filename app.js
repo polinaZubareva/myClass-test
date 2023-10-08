@@ -37,7 +37,7 @@ function restore() {
       console.log('error', err);
     });
 }
-// restore();
+restore();
 
 function backup() {
   execute(
@@ -50,7 +50,7 @@ function backup() {
       console.log('error', err);
     });
 }
-backup();
+// backup();
 
 // cron.schedule('* * * * *', () => {
 //   console.log('Got backup');

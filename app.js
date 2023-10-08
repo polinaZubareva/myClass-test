@@ -54,4 +54,5 @@ cron.schedule('* * * * *', () => {
   console.log('Got backup');
   backup();
 });
+
 export default app;

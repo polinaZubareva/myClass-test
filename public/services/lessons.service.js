@@ -101,8 +101,7 @@ class lessonsService {
   }
 
   async getLessons(data) {
-    let ids,
-      getQuery,
+    let getQuery,
       gottenData = [];
     let {
       date = 'null,null',
@@ -190,26 +189,47 @@ class lessonsService {
       .query(getQuery, [date[0] === 'null' ? null : date[0], status])
       .then((value) => {
         gottenData = value.rows;
-        ids = value.rows.map((value) => value?.id);
       })
       .catch((err) => {
         return { responseStatus: 400, error: err.message };
       });
 
-    gottenData.forEach((value) => {
-      value.students = [];
-      value.teachers = [];
-    });
+    const toReturn = await Promise.all(
+      gottenData.map(async (value) => {
+        const students = await this.getStudents(value.id);
+        const teachers = await this.getTeachers(value.id);
+        return { ...value, students, teachers };
+      })
+    );
 
-    return gottenData;
+    console.log(toReturn);
+    return toReturn;
   }
 
-  async getStudents(lessonsIds) {
-    let students = [];
-    for (let i = 0; i < lessonsIds.length - 1; i++) {
-      students.push((await dbPool.query()).rows);
-    }
+  async getStudents(lessonId) {
+    const students = (
+      await dbPool.query(
+        `with students_with_visit as(
+              select student_id, visit from lesson_students where lesson_id=$1
+            ) select id,name,visit from students 
+            join students_with_visit on students.id=students_with_visit.student_id;`,
+        [lessonId]
+      )
+    ).rows;
     return students;
+  }
+
+  async getTeachers(lessonId) {
+    const teachers = (
+      await dbPool.query(
+        `with teachers_from as(
+          select teacher_id from lesson_teachers where lesson_id=$1
+        ) select id,name from teachers 
+        join teachers_from on teachers.id=teachers_from.teacher_id;`,
+        [lessonId]
+      )
+    ).rows;
+    return teachers;
   }
 }
 

@@ -107,6 +107,7 @@ class lessonsService {
       page = 1,
       lessonsPerPage = 5,
     } = data;
+    console.log(date);
     date = date.split(',');
     teacherIds = teacherIds.split(',');
 
@@ -165,7 +166,7 @@ class lessonsService {
       else
         getQuery = `with date_filter as(
       select id from lessons
-      where date >= $1 and date <= '${date[1]}'
+      where date > $1 and date <= '${date[1]}'
     ), status_filter as(
       select id from lessons
       where status=$2
@@ -198,6 +199,7 @@ class lessonsService {
     order by 1
       limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
     }
+    console.log(getQuery);
     await dbPool
       .query(
         getQuery,

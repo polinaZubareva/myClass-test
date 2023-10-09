@@ -107,7 +107,6 @@ class lessonsService {
       page = 1,
       lessonsPerPage = 5,
     } = data;
-    console.log(date);
     date = date.split(',');
     teacherIds = teacherIds.split(',');
 
@@ -199,7 +198,6 @@ class lessonsService {
     order by 1
       limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
     }
-    console.log(getQuery);
     await dbPool
       .query(
         getQuery,

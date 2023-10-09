@@ -14,13 +14,14 @@ class lessonsService {
     let createdIds, query, added;
     const first = new Date(firstDate);
     let last = new Date(lastDate);
-    const newLast = new Date(first.setFullYear(first.getFullYear() + 1));
+    const difference = this.getYearDiffWithMonth(first, last);
 
+    const newLast = new Date(first.setFullYear(first.getFullYear() + 1));
     if (isNaN(lessonsCount)) {
       query = `WITH days AS (
           SELECT date, EXTRACT(DOW FROM date) day_of_week 
           FROM generate_series('${firstDate}'::DATE,'${
-            last.getDate() - first.getDate() > 0
+            difference > 0
               ? newLast.getFullYear() +
                 '-' +
                 (newLast.getMonth() + 1) +
@@ -48,7 +49,7 @@ class lessonsService {
           FROM days 
           WHERE day_of_week IN (${days.toString()})
         ), res as (select * from dates WHERE date < ('${firstDate}'::DATE+'1 year'::interval) limit ${
-          lessonsCount > 300 ? this.countLimit : lessonsCount
+          lessonsCount > this.countLimit ? this.countLimit : lessonsCount
         })
         INSERT INTO lessons(date, title, status)
         SELECT *, '${title}', '0'
@@ -68,13 +69,7 @@ class lessonsService {
         };
       });
 
-    if (!createdIds?.length)
-      return {
-        responseStatus: 400,
-        message: 'lessons added, but problems with foreign keys',
-      };
-    else {
-      const addLessonTeachersIdsQuery = `WITH lessons_new AS(
+    const addLessonTeachersIdsQuery = `WITH lessons_new AS(
           SELECT * FROM unnest(array [${added}])
         ), teachers_new AS(
           SELECT * FROM unnest(array [${teacherIds}])
@@ -84,19 +79,19 @@ class lessonsService {
         INSERT INTO lesson_teachers(lesson_id, teacher_id) SELECT * FROM res 
         ON CONFLICT ON CONSTRAINT lessons_teachers DO nothing;`;
 
-      await dbPool
-        .query(addLessonTeachersIdsQuery)
-        .then((value) => {
-          console.log(` lessons teachers${value}`);
-        })
-        .catch((err) => {
-          console.log(err.message);
-          return {
-            responseStatus: 400,
-            error: err.message,
-          };
-        });
-    }
+    await dbPool
+      .query(addLessonTeachersIdsQuery)
+      .then((value) => {
+        console.log(` lessons teachers${value}`);
+      })
+      .catch((err) => {
+        console.log(err.message);
+        return {
+          responseStatus: 400,
+          error: err.message,
+        };
+      });
+
     return { lessonsIds: createdIds };
   }
 
@@ -230,6 +225,12 @@ class lessonsService {
       )
     ).rows;
     return teachers;
+  }
+
+  getYearDiffWithMonth(startDate, endDate) {
+    const ms = endDate.getTime() - startDate.getTime();
+    const date = new Date(ms);
+    return Math.abs(date.getUTCFullYear() - 1970);
   }
 }
 

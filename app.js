@@ -27,10 +27,10 @@ app.use(function (err, req, res, next) {
 
 function restore() {
   execute(
-    `PGPASSWORD=${ENVCONST.DBPASSWORD} psql -U postgres -d ${ENVCONST.DBNAME} < test-backup.psql`
+    `PGPASSWORD=${ENVCONST.DBPASSWORD} psql -U postgres -d ${ENVCONST.DBNAME} < test-restore.psql`
   )
     .then(async () => {
-      // await createConstraintLessonTeacher();
+      await createConstraintLessonTeacher();
       console.log('DB is ready');
     })
     .catch((err) => {
@@ -51,10 +51,10 @@ function backup() {
     });
 }
 
-cron.schedule('* * * * *', () => {
-  console.log('Got backup and restore');
-  backup();
-  restore();
-});
+// cron.schedule('* * * * *', () => {
+//   console.log('Got backup and restore');
+//   backup();
+//   restore();
+// });
 
 export default app;

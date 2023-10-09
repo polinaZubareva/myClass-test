@@ -4,15 +4,16 @@ class lessonsController {
   async create(req, res) {
     const addedData = req.body;
     const result = await lessonsService.createLessons(addedData);
-    console.log(result);
     if (result?.responseStatus == 400) {
       res.status(400).send(result);
     } else res.send(result);
   }
 
   async read(req, res) {
-    const lessons = await lessonsService.getLessons(req.body);
-    res.send(lessons);
+    const lessons = await lessonsService.getLessons(req.query);
+    if (lessons?.responseStatus == 400) {
+      res.status(400).send(lessons);
+    } else res.send(lessons);
   }
 }
 

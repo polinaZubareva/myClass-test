@@ -98,6 +98,7 @@ class lessonsService {
   async getLessons(data) {
     let getQuery,
       gottenData = [];
+
     let {
       date = 'null,null',
       status = null,
@@ -109,8 +110,25 @@ class lessonsService {
     date = date.split(',');
     teacherIds = teacherIds.split(',');
 
-    if (date[1] === undefined || date[1] === 'null')
-      getQuery = `with date_filter as(
+    const emptyData = Object.keys(data).length;
+    if (emptyData === 0) {
+      getQuery = `with select_all as(
+        select id from lessons
+      ), visit_count as (
+        select lesson_id, count(*) as visited_count from lesson_students 
+        where lesson_id in (select * from select_all) 
+        and visit=true 
+        group by 1
+      )
+      select lessons.id, date, title, status, visited_count 
+      from lessons 
+      left join visit_count on lessons.id=visit_count.lesson_id 
+      where id in (select * from select_all) 
+      order by 1
+      limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
+    } else {
+      if (date[1] === undefined || date[1] === 'null')
+        getQuery = `with date_filter as(
       select id from lessons
       where date = $1
     ), status_filter as(
@@ -143,9 +161,9 @@ class lessonsService {
     left join visit_count on lessons.id=visit_count.lesson_id 
     where id in (select * from all_selected) 
     order by 1
-    limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
-    else
-      getQuery = `with date_filter as(
+      limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
+      else
+        getQuery = `with date_filter as(
       select id from lessons
       where date >= $1 and date <= '${date[1]}'
     ), status_filter as(
@@ -178,14 +196,18 @@ class lessonsService {
     left join visit_count on lessons.id=visit_count.lesson_id 
     where id in (select * from all_selected) 
     order by 1
-    limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
-
+      limit ${lessonsPerPage} offset (${page}-1)*${lessonsPerPage};`;
+    }
     await dbPool
-      .query(getQuery, [date[0] === 'null' ? null : date[0], status])
+      .query(
+        getQuery,
+        emptyData !== 0 ? [date[0] === 'null' ? null : date[0], status] : []
+      )
       .then((value) => {
         gottenData = value.rows;
       })
       .catch((err) => {
+        console.log(err);
         return { responseStatus: 400, error: err.message };
       });
 
@@ -197,7 +219,6 @@ class lessonsService {
       })
     );
 
-    console.log(toReturn);
     return toReturn;
   }
 
